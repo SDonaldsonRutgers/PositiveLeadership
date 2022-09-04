@@ -1,0 +1,360 @@
+---
+title: "Positive Leadership Behaviors Predict PERMA+4 in an African American Sample of Business Professionals"
+author: "Scott Donaldson, PhD"
+date: "10/04/21"
+output: html_notebook
+---
+
+# Data Management
+
+## Note from SPSS Upload
+
+(N = 9616)
+
+1.  If participants completed all scale variables they were retained
+
+2.  Deleted 376
+
+3.  Then deleted 10 for no to the informed consent question
+
+## Upload Packages
+
+```{r Load R Packages}
+setwd("~/Desktop/USD/PositiveLeadership/R/PositiveLeadership")
+library(haven)
+library(tidyverse)
+library(careless)
+library(psych)
+library(Hmisc)
+
+```
+
+## Read Data from SPSS
+
+```{r Read dataset from SPSS}
+# Read in data from Excel
+PL_Data <- read_sav("PositiveLeadership.sav")
+
+# Get rid of SPSS attributes and labels
+PL_Data <- zap_label(PL_Data)
+PL_Data <- zap_formats(PL_Data)
+PL_Data <- zap_labels(PL_Data)
+PL_Data <- zap_widths(PL_Data)
+PL_Data <- as.data.frame(PL_Data)
+PL_Data <- select(PL_Data, -Informed_Consent)
+```
+
+## Create Scale Scores
+
+```{r Score Gill and PFW}
+#Leadership Scale
+PL_Data <- mutate(PL_Data,
+LVM_Scale         = (LeadVisionMission1 + LeadVisionMission2)/2,
+LStrat_Scale      = (LeadStrategy1 + LeadStrategy2)/2,
+LEmpower_Scale    = (LeadEmpowerment1 + LeadEmpowerment2)/2,
+LInfluence_Scale  = (LeadInfluence1 + LeadInfluence2)/2,
+LShared_Scale     = (LeadShared1 + LeadShared2)/2,
+GILL_Scale        = (LVM_Scale  + LStrat_Scale + LEmpower_Scale +
+                     LInfluence_Scale + LShared_Scale)/5,
+
+#Positive Functioning at Work
+PL_Data <- mutate(PL_Data,
+PE_Scale      = (Positive_Emotion_1 + Positive_Emotion_2)/2,
+EN_Scale      = (Engagement_1 + Engagement_2)/2,
+REL_Scale     = (Relationships_1 + Relationships_2)/2,
+Mean_Scale    = (Meaning_1 + Meaning_2)/2,
+Acc_Scale     = (Accomplishment_1 + Accomplishment_2)/2,
+Health_Scale  = (Physical_Health_1 + Physical_Health_2)/2,
+Mind_Scale    = (Mindset_1 + Mindset_2)/2,
+ECON_Scale    = (Economic_Security_1 + Economic_Security_1)/2,
+Enviro_Scale  = (Environment_1 + Environment_1)/2,
+
+#Score Overall Scale
+PFW_Scale     = (PE_Scale + 
+                 EN_Scale +
+                 REL_Scale +
+                 Mean_Scale +
+                 Acc_Scale +
+                 Health_Scale +
+                 Mind_Scale +
+                 ECON_Scale +
+                 Enviro_Scale)/9
+))
+      
+```
+
+## Recode demographics
+
+```{r Demos 2 }
+## Age
+PL_Data$Age <- as.numeric(PL_Data$Age)
+
+## Job Tenure
+PL_Data$Job_Tenure <- as.numeric(PL_Data$Job_Tenure)
+
+## Gender
+PL_Data$Gender <- as.factor(PL_Data$Gender)
+PL_Data$Gender <-fct_recode(PL_Data$Gender,
+                    "Male"      = "9",
+                    "Female"    = "10" ,
+                    "Third"     = "11",
+                    "PreferNA"  = "12",
+                    "Other"     = "14"
+                    )
+
+## Ethnicity
+PL_Data$Ethnicity <- as.factor(PL_Data$Ethnicity)
+PL_Data$Ethnicity <-fct_recode(PL_Data$Ethnicity,
+                    "White"    = "198",
+                    "Black"    = "199" ,
+                    "AIAN"     = "200",
+                    "Asian"    = "201",
+                    "NHPI"     = "202",
+                    "Hispanic" = "203",
+                    "mixed"    = "204",
+                    "Other"    = "205",
+                    )
+
+## Industry
+PL_Data$Current_Industry <- as.factor(PL_Data$Current_Industry)
+PL_Data$Current_Industry <-fct_recode(PL_Data$Current_Industry,
+                    "Banking"       = "4",
+                    "Education"     = "5" ,
+                    "Food&Bev"      = "6",
+                    "Government"    = "7",
+                    "Healthcare"    = "8",
+                    "Manufacturing" = "9",
+                    "Media&ENT"     = "10",
+                    "Retail"        = "11",
+                    "SoftwareIT"    = "12",
+                    "Nonprofit"     = "13",
+                    "Other"         = "14",
+                    )
+
+## Job Function
+PL_Data$Job_Function <- as.factor(PL_Data$Job_Function)
+PL_Data$Job_Function <-fct_recode(PL_Data$Job_Function,
+                    "Accouting"      = "4",
+                    "Administrative" = "5" ,
+                    "Arts&Design"    = "6",
+                    "Education"      = "7",
+                    "Engineering"    = "8",
+                    "IT"             = "9",
+                    "Marketing"      = "10",
+                    "Management"     = "11",
+                    "Operations"     = "12",
+                    "Other"          = "13"
+                    )
+
+## Income
+PL_Data$Income <- as.factor(PL_Data$Income)
+PL_Data$Income <-fct_recode(PL_Data$Income,
+                    "Lessthan25k" = "9",
+                    "25_50k"      = "10" ,
+                    "50_75k"      = "11",
+                    "75_99k"      = "13",
+                    "100_150k"    = "14",
+                    "150more"     = "20")
+
+PL_Data$row_num <- seq.int(nrow(PL_Data)) 
+```
+
+# Data Cleaning
+
+The first thing I will do is do a Mahalonobis Distance Outlier test on our two scales. Then I will examine longstring invariant responding to remove careless responders.
+
+-   Findings:
+
+    -   Removed 89 outliers based on Mahal
+
+    -   Longstring showed an average of 5 and SD - 3.9. Thus, I decided to delete respondents that had 10 or more invariant responses.
+
+        -   Remove 874 respondents
+
+    -   Based on Desimone, less than 80 seconds should be deleted
+
+        -   Delete 246
+
+```{r Mahal}
+MD <- mahad(PL_Data[, c(51,61)], 
+            flag = TRUE, 
+            confidence = 0.999) 
+
+MD$row_num <- seq.int(nrow(MD)) 
+
+PL_Data <- inner_join(PL_Data,
+                      MD,
+                      by = "row_num")
+#Remove 89 outliers
+PL_Data <- filter(PL_Data, flagged ==FALSE)
+```
+
+```{r Longstring}
+Longstring <- as.data.frame(longstring(PL_Data[, c(3:33)]))
+Longstring$row_num <- seq.int(nrow(Longstring)) 
+
+#Boxplot plus descriptive stats
+describe(Longstring)
+boxplot(Longstring)
+
+#Join the datasets
+PL_Data$row_num <- seq.int(nrow(PL_Data))
+PL_Data <- inner_join(PL_Data,
+                      Longstring,
+                      by = "row_num")
+PL_Data <- filter(PL_Data, 
+                  `longstring(PL_Data[, c(3:33)])` <=10)
+
+```
+
+```{r Duration in seconds}
+describe(PL_Data$Duration__in_seconds_)
+boxplot(PL_Data$Duration__in_seconds_)
+
+PL_Data <- filter(PL_Data, 
+                  Duration__in_seconds_ >= 80)
+
+```
+
+# Data Analysis
+## Subset by African American
+```{r}
+AfriAmeri <- PL_Data[which(PL_Data$Ethnicity=='Black'), ]
+```
+
+## Demographics
+```{r Demos}
+# Age
+mean(AfriAmeri$Age, na.rm = TRUE)
+sd(AfriAmeri$Age, na.rm = TRUE)
+
+# Gender
+freqdist::freqdist(AfriAmeri$Gender)
+
+# Industry
+freqdist::freqdist(AfriAmeri$Current_Industry)
+
+# Job Function
+freqdist::freqdist(AfriAmeri$Job_Function)
+
+# Income
+freqdist::freqdist(AfriAmeri$Income)
+
+# Job Tenure
+mean(AfriAmeri$Job_Tenure, na.rm = TRUE)
+sd(AfriAmeri$Job_Tenure, na.rm = TRUE)
+
+
+```
+
+## Descriptives, Cronbach, and Correlation Matrix
+```{r Descriptives}
+# Gill and PFW Means and SDs
+sapply(AfriAmeri[, c(46:61)],
+               mean)
+sapply(AfriAmeri[, c(46:61)],
+               sd)
+# Alphas
+alpha(AfriAmeri[, c(46:50)]) #Gill Scale
+alpha(AfriAmeri[, c(52:60)]) #PFW
+
+```
+```{r Correlation Matrix}
+Matrix <- AfriAmeri[, c(46:61)]
+Matrix <- as.matrix(Matrix)
+rcorr(Matrix, type = "pearson")
+
+```
+
+## Regression Modeling
+```{r Create Dummy Codes for Gender & Ethnicity}
+#Gender
+Constrast.Gender <-contrasts(AfriAmeri$Gender) <- contr.treatment(5, 
+                                               base = 1,
+                                               contrasts = TRUE)
+
+
+
+
+```
+```{r GILL predicting PFW and subdimensions}
+attach(AfriAmeri)
+
+# GILL
+Reg.GILL <- lm(PFW_Scale ~ GILL_Scale  + Gender)    
+summary(Reg.GILL)
+confint.lm(Reg.GILL)
+
+# Vision and Mission
+Reg.VM <- lm(PFW_Scale ~ LVM_Scale  + Gender)    
+summary(Reg.VM)
+confint.lm(Reg.VM)
+
+# Strategy
+Reg.Strat <- lm(PFW_Scale ~ LStrat_Scale  + Gender)    
+summary(Reg.Strat)
+confint.lm(Reg.Strat)
+
+# Empowerment
+Reg.Emp <- lm(PFW_Scale ~ LEmpower_Scale  + Gender)    
+summary(Reg.Emp)
+confint.lm(Reg.Emp)
+
+# Influence
+Reg.IMI <- lm(PFW_Scale ~ LInfluence_Scale  + Gender)    
+summary(Reg.IMI)
+confint.lm(Reg.IMI)
+
+# Shared
+Reg.Shared <- lm(PFW_Scale ~ LShared_Scale  + Gender)    
+summary(Reg.Shared)
+confint.lm(Reg.Shared)
+
+
+```
+
+
+
+
+
+## Exploratory Analyses
+```{r Explore}
+#Lump Gender
+AfriAmeri$Gender <- fct_lump_n(AfriAmeri$Gender, 2)
+
+# what does this data set say about fear?
+
+##Boxplot of PFW by Gender
+ggplot(AfriAmeri, aes(x=Gender, y=PFW_Scale)) + geom_boxplot() +
+    stat_summary(fun.y=mean, geom="point", shape=5, size=4)
+
+##Boxplot of PFW by Income
+ggplot(AfriAmeri, aes(x=Income, y=PFW_Scale)) + geom_boxplot() +
+    stat_summary(fun.y=mean, geom="point", shape=5, size=4)
+
+## Income ANOVA
+aov1 <- aov(PFW_Scale ~ Income, data=AfriAmeri)
+summary(aov1)
+model.tables(aov1, "means")
+
+## Does gender x income make a difference
+aov2 <- aov(PFW_Scale ~ Income*Gender, data=AfriAmeri)
+aov2 <- aov(PFW_Scale ~ Income + Gender + Income:Gender, data=AfriAmeri)
+summary(aov2)
+model.tables(aov2, "means")
+
+# Bar graph, time on x-axis, color fill grouped by sex -- use position_dodge()
+ggplot(data=AfriAmeri, aes(x=Income, y=PFW_Scale, fill=Gender)) +
+    geom_bar(stat="identity", position=position_dodge(), colour="black")
+
+##Boxplot of PFW by Industry
+ggplot(AfriAmeri, aes(x=Job_Function, y=PFW_Scale)) + geom_boxplot() +
+    stat_summary(fun.y=mean, geom="point", shape=5, size=4)
+
+# Facet wraps
+sp <- ggplot(AfriAmeri, aes(x=GILL_Scale, y=PFW_Scale)) + geom_point(shape=1)
+sp
+
+sp + facet_grid(Income ~ .)
+```
+
